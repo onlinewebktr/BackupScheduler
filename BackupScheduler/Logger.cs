@@ -9,21 +9,27 @@ namespace BackupScheduler
 {
     class Logger
     {
+        private static bool _cleanupDone = false;
 
         public static void Write(string message)
         {
-            string folder =
-                @"C:\BackupScheduler\Logs";
+            string folder = @"C:\BackupScheduler\Logs";
 
             if (!Directory.Exists(folder))
             {
                 Directory.CreateDirectory(folder);
             }
 
-            string filePath =
-                Path.Combine(
-                    folder,
-                    DateTime.Now.ToString("yyyy-MM-dd") + ".log");
+            // Sirf ek baar cleanup chale
+            if (!_cleanupDone)
+            {
+                DeleteOldLogs(folder);
+                _cleanupDone = true;
+            }
+
+            string filePath = Path.Combine(
+                folder,
+                DateTime.Now.ToString("yyyy-MM-dd") + ".log");
 
             File.AppendAllText(
                 filePath,
@@ -31,6 +37,25 @@ namespace BackupScheduler
                 + " | "
                 + message
                 + Environment.NewLine);
+        }
+
+        private static void DeleteOldLogs(string folder)
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.log"))
+                {
+                    FileInfo fi = new FileInfo(file);
+
+                    if (fi.CreationTime < DateTime.Now.AddDays(-7))
+                    {
+                        fi.Delete();
+                    }
+                }
+            }
+            catch
+            {
+            }
         }
     }
 }

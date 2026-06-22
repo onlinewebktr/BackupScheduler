@@ -13,13 +13,13 @@ namespace BackupScheduler
         private static bool IsSyncRunning = false;
         public static void Run()
         {
-            Console.WriteLine("Scheduler Started");
-            Logger.Write("Scheduler Started");
+           // Console.WriteLine("Scheduler Started");
+           // Logger.Write("Scheduler Started");
            
 
             DataTable dt = GetPendingBackup();
             Console.WriteLine("Pending Backup : " + dt.Rows.Count);
-            Logger.Write("Pending Backup : " + dt.Rows.Count);
+           // Logger.Write("Pending Backup : " + dt.Rows.Count);
             ConnectAllDestinations();
             foreach (DataRow row in dt.Rows)
             {
@@ -29,9 +29,10 @@ namespace BackupScheduler
                 Console.WriteLine("--------------------");
                 Console.WriteLine("Schedule ID : " + scheduleId);
                 Console.WriteLine("Database ID : " + databaseId);
+               // Logger.Write("Schedule ID : " + dbname);
                 Console.WriteLine("Frequency : " + row["Frequency"]);
                 Console.WriteLine("Backup Time : " + row["BackupTime"]);
-                Logger.Write("Schedule ID : " + scheduleId+ "Schedule ID : " + scheduleId+ "Database ID : " + databaseId+ "Frequency : " + row["Frequency"]+ "Backup Time : " + row["BackupTime"]);
+                Logger.Write("Schedule ID : " + scheduleId+ "Schedule ID : " + scheduleId+ "Database Name : " + dbname + "Frequency : " + row["Frequency"]+ "Backup Time : " + row["BackupTime"]);
                 CheckDiskSpace();
                 // next step me yaha backup chalega
                 try
@@ -103,8 +104,8 @@ namespace BackupScheduler
     "Daily Summary Email Sent");
 
             DisconnectAllDestinations();
-            Logger.Write("Scheduler End");
-            Console.WriteLine("Scheduler End");
+           // Logger.Write("Scheduler End");
+           // Console.WriteLine("Scheduler End");
 
         }
 
@@ -897,7 +898,7 @@ decimal size)
                     p.Start();
                     p.WaitForExit();
 
-                    Logger.Write("CONNECTED : " + destFolder);
+                    //Logger.Write("CONNECTED : " + destFolder);
                 }
                 catch (Exception ex)
                 {
@@ -924,7 +925,7 @@ decimal size)
                     p.Start();
                     p.WaitForExit();
 
-                    Logger.Write("DISCONNECTED : " + destFolder);
+                   // Logger.Write("DISCONNECTED : " + destFolder);
                 }
                 catch (Exception ex)
                 {
