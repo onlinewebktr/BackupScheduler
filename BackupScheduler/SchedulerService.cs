@@ -97,9 +97,28 @@ namespace BackupScheduler
            
             Console.WriteLine("Retention Check Started");
             DeleteOldBackupFiles();
-            Logger.Write("Daily Sync Started file copy");
-            SyncToAllDestinations();
-            SendDailySummaryIfRequired();
+            Logger.Write("Daily Sync Started file copy-bulk");
+            try
+            {
+                SyncToAllDestinations();
+            }
+            catch (Exception ex)
+            {
+                Logger.Write("Sync Error : " + ex.Message);
+            }
+
+            try
+            {
+                SendDailySummaryIfRequired();
+                Logger.Write("Daily Summary Email Sent");
+            }
+            catch (Exception ex)
+            {
+                Logger.Write("Daily Summary Error : " + ex.Message);
+            }
+
+
+            
             Console.WriteLine(
     "Daily Summary Email Sent");
 
@@ -164,9 +183,7 @@ namespace BackupScheduler
                     SqlCommand cmd =
                         new SqlCommand(
                         @"SELECT TOP 1
-                   DailySummaryEmail,
-    LastSummaryEmailDate,
-    SummaryEmailTime
+                    DailySummaryEmail
                   FROM tbl_SystemSettings",
                         con);
 
@@ -174,86 +191,77 @@ namespace BackupScheduler
                         cmd.ExecuteReader();
 
                     bool enabled = false;
-                    DateTime? lastDate = null;
-                    TimeSpan summaryTime = new TimeSpan(23, 55, 0);
 
                     if (dr.Read())
                     {
                         enabled = Convert.ToBoolean(
-     dr["DailySummaryEmail"]);
-
-                        if (dr["LastSummaryEmailDate"] != DBNull.Value)
-                        {
-                            lastDate = Convert.ToDateTime(
-                                dr["LastSummaryEmailDate"]);
-                        }
-
-                        if (dr["SummaryEmailTime"] != DBNull.Value)
-                        {
-                            summaryTime =
-                                TimeSpan.Parse(
-                                dr["SummaryEmailTime"].ToString());
-                        }
+                            dr["DailySummaryEmail"]);
                     }
 
                     dr.Close();
 
-                    SqlCommand cmdTotal = new SqlCommand(
-            @"SELECT COUNT(*)
-  FROM tbl_DatabaseMaster
-  WHERE IsActive = 1", con);
+                    if (!enabled)
+                    {
+                        Logger.Write(
+                            "Daily Summary Email Disabled.");
+                        return;
+                    }
 
-                    int totalDb = Convert.ToInt32(cmdTotal.ExecuteScalar());
+                    SqlCommand cmdTotal =
+                        new SqlCommand(
+                        @"SELECT COUNT(*)
+                  FROM tbl_DatabaseMaster
+                  WHERE IsActive = 1",
+                        con);
 
-                    SqlCommand cmdProcessed = new SqlCommand(
-  @"SELECT COUNT(DISTINCT DatabaseName)
-  FROM tbl_BackupLog
-  WHERE CAST(CreatedDate AS DATE)=CAST(GETDATE() AS DATE)", con);
+                    int totalDb =
+                        Convert.ToInt32(
+                        cmdTotal.ExecuteScalar());
 
-                    int processedDb = Convert.ToInt32(cmdProcessed.ExecuteScalar());
+                    SqlCommand cmdProcessed =
+                        new SqlCommand(
+                        @"SELECT COUNT(DISTINCT DatabaseName)
+                  FROM tbl_BackupLog
+                  WHERE CAST(CreatedDate AS DATE)=CAST(GETDATE() AS DATE)",
+                        con);
 
-                    Logger.Write("TOTAL DB : " + totalDb);
-                    Logger.Write("PROCESSED DB : " + processedDb);
+                    int processedDb =
+                        Convert.ToInt32(
+                        cmdProcessed.ExecuteScalar());
+
+                    Logger.Write(
+                        "TOTAL DB : " + totalDb);
+
+                    Logger.Write(
+                        "PROCESSED DB : " + processedDb);
 
                     if (processedDb < totalDb)
                     {
-                        Logger.Write("Waiting For Remaining Backup...");
+                        Logger.Write(
+                            "Waiting For Remaining Backup...");
                         return;
                     }
 
-                    if (!enabled)
-                        return;
-
-                   
-                    if (lastDate != null
-                        && lastDate.Value.Date
-                        == DateTime.Today)
-                    {
-                        return;
-                    }
+                    Logger.Write(
+                        "STARTING DAILY SUMMARY EMAIL");
 
                     if (SendDailySummaryEmail())
                     {
-                        SqlCommand cmdUpdate =
-                            new SqlCommand(
-                            @"UPDATE tbl_SystemSettings
-          SET LastSummaryEmailDate=@Date",
-                            con);
-
-                        cmdUpdate.Parameters.AddWithValue(
-                            "@Date",
-                            DateTime.Today);
-
-                        cmdUpdate.ExecuteNonQuery();
-                       
+                        Logger.Write(
+                            "DAILY SUMMARY EMAIL SENT");
+                    }
+                    else
+                    {
+                        Logger.Write(
+                            "DAILY SUMMARY EMAIL FAILED");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine(
+                Logger.Write(
                     "Summary Email Error : "
-                    + ex.Message);
+                    + ex.ToString());
             }
         }
         private static bool SendDailySummaryEmail()
@@ -1040,6 +1048,7 @@ decimal size)
         private static void SyncToAllDestinations()
         {
             int totalRecovered = 0;
+
             if (IsSyncRunning)
             {
                 Logger.Write("Sync Already Running. Skipped.");
@@ -1063,11 +1072,34 @@ decimal size)
                     string password =
                         dr["Password"].ToString();
 
-                    totalRecovered += SyncToPath(
-     destFolder,
-     userName,
-     password);
+                    try
+                    {
+                        totalRecovered += SyncToPath(
+                            destFolder,
+                            userName,
+                            password);
+
+                        Logger.Write("SYNC SUCCESS : " + destFolder);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Write(
+                            "Sync Error (" + destFolder + ") : "
+                            + ex.Message);
+
+                        // Continue next destination
+                    }
                 }
+
+                Logger.Write(
+                    "SYNC COMPLETED. TOTAL FILES : "
+                    + totalRecovered);
+            }
+            catch (Exception ex)
+            {
+                Logger.Write(
+                    "SyncToAllDestinations Error : "
+                    + ex.Message);
             }
             finally
             {
