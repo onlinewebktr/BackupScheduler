@@ -110,7 +110,7 @@ namespace BackupScheduler
             try
             {
                 SendDailySummaryIfRequired();
-                Logger.Write("Daily Summary Email Sent");
+                
             }
             catch (Exception ex)
             {
@@ -211,7 +211,7 @@ namespace BackupScheduler
                         new SqlCommand(
                         @"SELECT COUNT(*)
                   FROM tbl_DatabaseMaster
-                  WHERE IsActive = 1",
+                  WHERE IsEnabled = 1",
                         con);
 
                     int totalDb =
