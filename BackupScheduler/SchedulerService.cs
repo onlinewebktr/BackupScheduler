@@ -229,17 +229,18 @@ namespace BackupScheduler
                         Convert.ToInt32(
                         cmdProcessed.ExecuteScalar());
 
-                    Logger.Write(
-                        "TOTAL DB : " + totalDb);
-
-                    Logger.Write(
-                        "PROCESSED DB : " + processedDb);
+                    
 
                     if (processedDb < totalDb)
                     {
-                        Logger.Write(
-                            "Waiting For Remaining Backup...");
-                        return;
+                        if (processedDb > 0)
+                        {
+                            Logger.Write(
+                                "Waiting For Remaining Backup... " +
+                                processedDb + "/" + totalDb);
+                        }
+
+                        
                     }
 
                     Logger.Write(
