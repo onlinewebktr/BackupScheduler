@@ -97,7 +97,7 @@ namespace BackupScheduler
            
             Console.WriteLine("Retention Check Started");
             DeleteOldBackupFiles();
-            Logger.Write("Daily Sync Started file copy-bulk");
+          
             try
             {
                 SyncToAllDestinations();
@@ -183,7 +183,7 @@ namespace BackupScheduler
                     SqlCommand cmd =
                         new SqlCommand(
                         @"SELECT TOP 1
-                    DailySummaryEmail
+                    DailySummaryEmail,LastSummaryEmailDate
                   FROM tbl_SystemSettings",
                         con);
 
@@ -191,11 +191,15 @@ namespace BackupScheduler
                         cmd.ExecuteReader();
 
                     bool enabled = false;
+                    DateTime? lastSummaryDate = null;
 
                     if (dr.Read())
                     {
                         enabled = Convert.ToBoolean(
                             dr["DailySummaryEmail"]);
+
+                        if (dr["LastSummaryEmailDate"] != DBNull.Value)
+                            lastSummaryDate = Convert.ToDateTime(dr["LastSummaryEmailDate"]);
                     }
 
                     dr.Close();
@@ -206,7 +210,12 @@ namespace BackupScheduler
                             "Daily Summary Email Disabled.");
                         return;
                     }
-
+                    if (lastSummaryDate.HasValue &&
+    lastSummaryDate.Value.Date == DateTime.Today)
+                    {
+                      //  Logger.Write("Today's daily summary email has already been sent.");
+                        return;
+                    }
                     SqlCommand cmdTotal =
                         new SqlCommand(
                         @"SELECT COUNT(*)
@@ -229,32 +238,28 @@ namespace BackupScheduler
                         Convert.ToInt32(
                         cmdProcessed.ExecuteScalar());
 
-                    
+
 
                     if (processedDb < totalDb)
                     {
                         if (processedDb > 0)
                         {
                             Logger.Write(
-                                "Waiting For Remaining Backup... " +
-                                processedDb + "/" + totalDb);
+                                $"Waiting For Remaining Backup... {processedDb}/{totalDb}");
                         }
 
-                        
+                        return;
                     }
 
-                    Logger.Write(
-                        "STARTING DAILY SUMMARY EMAIL");
+                    Logger.Write("Starting daily summary email...");
 
                     if (SendDailySummaryEmail())
                     {
-                        Logger.Write(
-                            "DAILY SUMMARY EMAIL SENT");
+                        Logger.Write("Daily summary email sent successfully.");
                     }
                     else
                     {
-                        Logger.Write(
-                            "DAILY SUMMARY EMAIL FAILED");
+                        Logger.Write("Daily summary email failed.");
                     }
                 }
             }
@@ -1051,10 +1056,7 @@ decimal size)
             int totalRecovered = 0;
 
             if (IsSyncRunning)
-            {
-                Logger.Write("Sync Already Running. Skipped.");
                 return;
-            }
 
             try
             {
@@ -1064,43 +1066,36 @@ decimal size)
 
                 foreach (DataRow dr in dtDest.Rows)
                 {
-                    string destFolder =
-                        dr["Destination_Path"].ToString();
-
-                    string userName =
-                        dr["UserName"].ToString();
-
-                    string password =
-                        dr["Password"].ToString();
+                    string destFolder = dr["Destination_Path"].ToString();
+                    string userName = dr["UserName"].ToString();
+                    string password = dr["Password"].ToString();
 
                     try
                     {
-                        totalRecovered += SyncToPath(
-                            destFolder,
-                            userName,
-                            password);
+                        int copied = SyncToPath(destFolder, userName, password);
 
-                        Logger.Write("SYNC SUCCESS : " + destFolder);
+                        totalRecovered += copied;
+
+                        if (copied > 0)
+                        {
+                            Logger.Write("Sync Success : " + destFolder +
+                                         " | Files : " + copied);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Logger.Write(
-                            "Sync Error (" + destFolder + ") : "
-                            + ex.Message);
-
-                        // Continue next destination
+                        Logger.Write("Sync Error (" + destFolder + ") : " + ex.Message);
                     }
                 }
 
-                Logger.Write(
-                    "SYNC COMPLETED. TOTAL FILES : "
-                    + totalRecovered);
+                if (totalRecovered > 0)
+                {
+                    Logger.Write("Daily sync completed. Total files copied : " + totalRecovered);
+                }
             }
             catch (Exception ex)
             {
-                Logger.Write(
-                    "SyncToAllDestinations Error : "
-                    + ex.Message);
+                Logger.Write("SyncToAllDestinations Error : " + ex.Message);
             }
             finally
             {
